@@ -2,7 +2,6 @@
 using SIPSorcery.Media;
 using SIPSorcery.SIP;
 using SIPSorcery.SIP.App;
-using SIPSorceryMedia.FFmpeg;
 using SIPSorceryMedia.SDL2;
 using SIPSorceryMedia.Abstractions;
 
@@ -16,24 +15,21 @@ class Program {
 
         var userAgent = new SIPUserAgent(sipTransport, null);
 
-        // string mic = SDL2Helper.GetAudioRecordingDevice("Plan");
-        // Console.WriteLine(mic);
-
-        var audioSource = new FFmpegAudioSource(new AudioEncoder());
-        // var audioSource = new FFmpegMicrophoneSource($"audio={mic}", new AudioEncoder());
-        audioSource.RestrictFormats(x => x.Codec == AudioCodecsEnum.PCMU);
-
-        // string ffmpegBinPath = Environment.GetEnvironmentVariable("FFMPEG_BIN");
-
-        // FFmpegInit.Initialise(FfmpegLogLevelEnum.AV_LOG_FATAL, "/run/current-system/sw/bin");
-        // FFmpegInit.Initialise(FfmpegLogLevelEnum.AV_LOG_FATAL);
-
         SDL2Helper.InitSDL();
 
-        string deviceName = SDL2Helper.GetAudioPlaybackDevice("Plan");
-        Console.WriteLine(deviceName);
+        string outDevice = SDL2Helper.GetAudioPlaybackDevice("Plan");
+        string inDevice = SDL2Helper.GetAudioRecordingDevice("Plan");
+        Console.WriteLine(outDevice);
+        Console.WriteLine(inDevice);
 
-        var audioSink = new SDL2AudioEndPoint(deviceName, new AudioEncoder());
+        var audioEncoder = new AudioEncoder();
+
+        var audioSink = new SDL2AudioEndPoint(outDevice, audioEncoder);
+        var audioSource = new SDL2AudioSource(inDevice, audioEncoder);
+
+        audioSink.RestrictFormats(x => x.Codec == AudioCodecsEnum.PCMU);
+        audioSource.RestrictFormats(x => x.Codec == AudioCodecsEnum.PCMU);
+
         // audioSink.SetAudioSinkFormat(new AudioFormat(SDPWellKnownMediaFormatsEnum.PCMU));
         // await audioSink.StartAudioSink();
 
@@ -66,12 +62,12 @@ class Program {
 
             await ua.Answer(uas, voipMediaSession);
 
-            await audioSource.PauseAudio();
-            await voipMediaSession.AudioExtrasSource.StartAudio();
-            voipMediaSession.AudioExtrasSource.SetSource(AudioSourcesEnum.Music);
+            // await audioSource.PauseAudio();
+            // await voipMediaSession.AudioExtrasSource.StartAudio();
+            // voipMediaSession.AudioExtrasSource.SetSource(AudioSourcesEnum.Music);
         };
 
-        // MakeCall(userAgent, args[1], voipMediaSession);
+        MakeCall(userAgent, args[1], voipMediaSession);
 
         exitMre.WaitOne();
 
@@ -84,11 +80,10 @@ class Program {
         var callResult = await ua.Call(destination, null, null, voipMediaSession);
         Console.WriteLine($"Call result {((callResult) ? "success" : "failure")}.");
 
-        var audioSource = voipMediaSession.Media.AudioSource;
-
-        await audioSource.PauseAudio();
-        await voipMediaSession.AudioExtrasSource.StartAudio();
-        voipMediaSession.AudioExtrasSource.SetSource(AudioSourcesEnum.Music);
+        // var audioSource = voipMediaSession.Media.AudioSource;
+        // await audioSource.PauseAudio();
+        // await voipMediaSession.AudioExtrasSource.StartAudio();
+        // voipMediaSession.AudioExtrasSource.SetSource(AudioSourcesEnum.Music);
 
         return callResult;
     }

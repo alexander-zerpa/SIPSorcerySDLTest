@@ -4,6 +4,3 @@
 [submodule "lib/sipsorcery"]
 	path = lib/sipsorcery
 	url = https://github.com/sipsorcery-org/sipsorcery.git
-[submodule "lib/SIPSorceryMedia.FFmpeg"]
-	path = lib/SIPSorceryMedia.FFmpeg
-	url = https://github.com/sipsorcery-org/SIPSorceryMedia.FFmpeg.git

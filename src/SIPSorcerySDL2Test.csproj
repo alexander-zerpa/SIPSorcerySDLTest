@@ -2,7 +2,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\lib\sipsorcery\src\SIPSorcery.csproj" />
-    <ProjectReference Include="..\lib\SIPSorceryMedia.FFmpeg\src\SIPSorceryMedia.FFmpeg.csproj" />
     <ProjectReference Include="..\lib\SIPSorceryMedia.SDL2\src\SIPSorceryMedia.SDL2.csproj" />
   </ItemGroup>
 

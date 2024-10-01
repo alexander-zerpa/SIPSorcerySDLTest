@@ -12,7 +12,6 @@
         name = "SIPSorcerySDL2Test";
         packages = with pkgs; [
           dotnet-sdk_8
-          ffmpeg-full
           SDL2
           SDL2.dev
           pjsip
