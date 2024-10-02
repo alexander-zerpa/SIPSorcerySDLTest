@@ -18,7 +18,6 @@
           sngrep
         ];
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath packages;
-        FFMPEG_BIN = "${pkgs.ffmpeg-full}/bin";
       };
     };
 }
