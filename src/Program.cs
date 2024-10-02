@@ -15,6 +15,8 @@ class Program {
     static SIPUserAgent userAgent;
     static SIPTransport sipTransport;
 
+    static MediaEndPoints audioEndPoints;
+
     static async Task<int> Main(string[] args) {
         var portOption = new Option<int>(
                 name: "--port",
@@ -40,7 +42,6 @@ class Program {
         rootCommand.SetHandler((sipPort, audioDevice) => {
                     audioDeviceDefault = audioDevice;
                     SetUp(sipPort);
-                    IncomingCall();
                     setExit();
                 }, portOption, audioDeviceOption);
 
@@ -60,30 +61,37 @@ class Program {
     }
 
     static void SetUp(int sipPort) {
-        SDL2Helper.InitSDL();
-
         sipTransport = new SIPTransport();
         sipTransport.AddSIPChannel(new SIPUDPChannel(new IPEndPoint(IPAddress.Any, sipPort)));
 
-        userAgent = new SIPUserAgent(sipTransport, null);
-
         Console.WriteLine($"Running on port: {sipPort}");
-    }
 
-    static void IncomingCall() {
+        audioEndPoints = AudioSetUp();
+
+        userAgent = new SIPUserAgent(sipTransport, null, false);
+
         userAgent.OnIncomingCall += async (ua, req) => {
             Console.WriteLine($"Incoming call from {req.RemoteSIPEndPoint}.");
 
-            var voipMediaSession = SetUpVoIPMediaSession();
-
             var uas = ua.AcceptCall(req);
 
-            await ua.Answer(uas, voipMediaSession);
-
+            if (userAgent.IsCallActive) {
+                uas.Reject(SIPResponseStatusCodesEnum.BusyHere, null);
+                Console.WriteLine("Rejected: already on call.");
+            } else {
+                var voipMediaSession = new VoIPMediaSession(audioEndPoints);
+                voipMediaSession.AcceptRtpFromAny = true;
+                await ua.Answer(uas, voipMediaSession);
+                Console.WriteLine("Answered.");
+            }
             // await audioSource.PauseAudio();
             // await voipMediaSession.AudioExtrasSource.StartAudio();
             // voipMediaSession.AudioExtrasSource.SetSource(AudioSourcesEnum.Music);
         };
+
+        userAgent.OnCallHungup += (dialog) => { Console.WriteLine($"{dialog.RemoteSIPEndPoint} hanged up"); };
+        userAgent.RemotePutOnHold += () => { Console.WriteLine("Put on hold."); };
+        userAgent.RemoteTookOffHold += () => { Console.WriteLine("Took off hold."); };
     }
 
     static void setExit() {
@@ -93,7 +101,7 @@ class Program {
             if (userAgent.IsCallActive) {
                 Console.WriteLine("Hanging up.");
                 userAgent.Hangup();
-            } else {
+            } else if (userAgent.IsCalling || userAgent.IsRinging) {
                 Console.WriteLine("Cancelling call.");
                 userAgent.Cancel();
             }
@@ -102,11 +110,16 @@ class Program {
 
         exitMre.WaitOne();
 
+        while (userAgent.IsHangingUp) {}
+
+        Console.WriteLine("Shutting down.");
+
         sipTransport.Shutdown();
     }
 
     static async Task<bool> MakeCall(string destination) {
-        var voipMediaSession = SetUpVoIPMediaSession();
+        var voipMediaSession = new VoIPMediaSession(audioEndPoints);
+        voipMediaSession.AcceptRtpFromAny = true;
 
         Console.WriteLine("making call.");
         var callResult = await userAgent.Call(destination, null, null, voipMediaSession);
@@ -120,14 +133,16 @@ class Program {
         return callResult;
     }
 
-    static VoIPMediaSession SetUpVoIPMediaSession() { return SetUpVoIPMediaSession(audioDeviceDefault); }
-    static VoIPMediaSession SetUpVoIPMediaSession(string deviceQuerry) { return SetUpVoIPMediaSession(deviceQuerry, deviceQuerry); }
-    static VoIPMediaSession SetUpVoIPMediaSession(string inDeviceQuerry, string outDeviceQuerry) {
+    static MediaEndPoints AudioSetUp() { return AudioSetUp(audioDeviceDefault); }
+    static MediaEndPoints AudioSetUp(string deviceQuerry) { return AudioSetUp(deviceQuerry, deviceQuerry); }
+    static MediaEndPoints AudioSetUp(string inDeviceQuerry, string outDeviceQuerry) {
+        SDL2Helper.InitSDL();
+
         string outDevice = SDL2Helper.GetAudioPlaybackDevice(inDeviceQuerry);
         string inDevice = SDL2Helper.GetAudioRecordingDevice(outDeviceQuerry);
 
-        Console.WriteLine(outDevice);
-        Console.WriteLine(inDevice);
+        Console.WriteLine($"Using input device: {inDevice}");
+        Console.WriteLine($"Using output device: {outDevice}");
 
         var audioEncoder = new AudioEncoder();
 
@@ -140,14 +155,9 @@ class Program {
         // audioSink.SetAudioSinkFormat(new AudioFormat(SDPWellKnownMediaFormatsEnum.PCMU));
         // await audioSink.StartAudioSink();
 
-        var mediaEndPoints = new MediaEndPoints{
+        return new MediaEndPoints{
             AudioSource = audioSource,
             AudioSink = audioSink,
         };
-
-        var voipMediaSession = new VoIPMediaSession(mediaEndPoints);
-        voipMediaSession.AcceptRtpFromAny = true;
-
-        return voipMediaSession;
     }
 }
