@@ -43,6 +43,8 @@ class Program {
         //     AudioSink = audioSink,
         // };
 
+        VoIPMediaSession voipMediaSession;
+
         var userAgent = new SIPUserAgent(sipTransport, null);
 
         Console.CancelKeyPress += delegate (object sender, ConsoleCancelEventArgs e) {
@@ -68,7 +70,7 @@ class Program {
                 uas.Reject(SIPResponseStatusCodesEnum.BusyHere, null);
                 Console.WriteLine("Rejected: already on call.");
             } else {
-                var voipMediaSession = new VoIPMediaSession(new MediaEndPoints{
+                voipMediaSession = new VoIPMediaSession(new MediaEndPoints{
                             AudioSource = audioSource,
                             AudioSink = audioSink,
                         });
@@ -89,8 +91,23 @@ class Program {
         userAgent.ClientCallAnswered += async (uac, res) => { Console.WriteLine("Call successful."); };
 
         userAgent.OnCallHungup += async (dialog) => { Console.WriteLine("Hanging up."); };
-        userAgent.RemotePutOnHold += async () => { Console.WriteLine("Put on hold."); };
-        userAgent.RemoteTookOffHold += async () => { Console.WriteLine("Took off hold."); };
+
+        userAgent.RemotePutOnHold += async () => { 
+            Console.WriteLine("Put on hold."); 
+            voipMediaSession = new VoIPMediaSession(new MediaEndPoints{
+                    AudioSource = audioSource,
+                    AudioSink = audioSink,
+                    });
+            voipMediaSession.AcceptRtpFromAny = true;
+        };
+        userAgent.RemoteTookOffHold += async () => { 
+            Console.WriteLine("Took off hold."); 
+            voipMediaSession = new VoIPMediaSession(new MediaEndPoints{
+                    AudioSource = audioSource,
+                    AudioSink = audioSink,
+                    });
+            voipMediaSession.AcceptRtpFromAny = true;
+        };
 
         Task.Run(async () => {
                 while (!exitMre.WaitOne(0)) {
@@ -99,38 +116,51 @@ class Program {
                     Console.Write('\b');
 
                     switch (keyProps.KeyChar) {
-                        // case 'h':
-                        //     if (userAgent.IsCallActive) {
-                        //         if (userAgent.IsOnLocalHold) {
-                        //             await (userAgent.MediaSession as VoIPMediaSession).AudioExtrasSource.PauseAudio();
-                        //             // (userAgent.MediaSession as VoIPMediaSession).TakeOffHold();
-                        //             await (userAgent.MediaSession as VoIPMediaSession).Media.AudioSource.ResumeAudio();
-                        //             // await (userAgent.MediaSession as VoIPMediaSession).Media.AudioSink.ResumeAudioSink();
-                        //
-                        //             await (userAgent.MediaSession as VoIPMediaSession).Media.AudioSink.StartAudioSink();
-                        //
-                        //             userAgent.TakeOffHold();
-                        //             Console.WriteLine("Taking remote off hold.");
-                        //         } else {
-                        //             // await (userAgent.MediaSession as VoIPMediaSession).PutOnHold();
-                        //             await (userAgent.MediaSession as VoIPMediaSession).Media.AudioSource.PauseAudio();
-                        //             await (userAgent.MediaSession as VoIPMediaSession).Media.AudioSink.PauseAudioSink();
-                        //             await (userAgent.MediaSession as VoIPMediaSession).AudioExtrasSource.StartAudio();
-                        //             (userAgent.MediaSession as VoIPMediaSession).AudioExtrasSource.SetSource(AudioSourcesEnum.Music);
-                        //
-                        //             userAgent.PutOnHold();
-                        //             Console.WriteLine("Putting remote on hold.");
-                        //         }
-                        //     } else {
-                        //         Console.WriteLine("No active call.");
-                        //     }
-                        //     break;
+                        case 'h':
+                            if (userAgent.IsCallActive) {
+                                if (userAgent.IsOnLocalHold) {
+                                    // await (userAgent.MediaSession as VoIPMediaSession).AudioExtrasSource.PauseAudio();
+                                    // // (userAgent.MediaSession as VoIPMediaSession).TakeOffHold();
+                                    // await (userAgent.MediaSession as VoIPMediaSession).Media.AudioSource.ResumeAudio();
+                                    // // await (userAgent.MediaSession as VoIPMediaSession).Media.AudioSink.ResumeAudioSink();
+                                    // await (userAgent.MediaSession as VoIPMediaSession).Media.AudioSink.StartAudioSink();
+
+                                    userAgent.TakeOffHold();
+
+                                    voipMediaSession = new VoIPMediaSession(new MediaEndPoints{
+                                            AudioSource = audioSource,
+                                            AudioSink = audioSink,
+                                            });
+                                    voipMediaSession.AcceptRtpFromAny = true;
+
+                                    Console.WriteLine("Taking remote off hold.");
+                                } else {
+                                    // // await (userAgent.MediaSession as VoIPMediaSession).PutOnHold();
+                                    // await (userAgent.MediaSession as VoIPMediaSession).Media.AudioSource.PauseAudio();
+                                    // await (userAgent.MediaSession as VoIPMediaSession).Media.AudioSink.PauseAudioSink();
+                                    // await (userAgent.MediaSession as VoIPMediaSession).AudioExtrasSource.StartAudio();
+                                    // (userAgent.MediaSession as VoIPMediaSession).AudioExtrasSource.SetSource(AudioSourcesEnum.Music);
+
+                                    userAgent.PutOnHold();
+                                    
+                                    voipMediaSession = new VoIPMediaSession(new MediaEndPoints{
+                                            AudioSource = audioSource,
+                                            AudioSink = audioSink,
+                                            });
+                                    voipMediaSession.AcceptRtpFromAny = true;
+                                    
+                                    Console.WriteLine("Putting remote on hold.");
+                                }
+                            } else {
+                                Console.WriteLine("No active call.");
+                            }
+                            break;
                         case 'm':
                             if (!userAgent.IsCallActive) {
                                 Console.WriteLine("destination: ");
                                 var destination = Console.ReadLine();
 
-                                var voipMediaSession = new VoIPMediaSession(new MediaEndPoints{
+                                voipMediaSession = new VoIPMediaSession(new MediaEndPoints{
                                         AudioSource = audioSource,
                                         AudioSink = audioSink,
                                         });
