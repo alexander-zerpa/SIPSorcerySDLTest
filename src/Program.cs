@@ -84,12 +84,12 @@ class Program {
             
         userAgent.ClientCallTrying += async (uac, res) => { Console.WriteLine("Trying..."); };
         userAgent.ClientCallRinging += async (uac, res) => { Console.WriteLine("Ringing..."); };
-        userAgent.ClientCallFailed += (uac, e, res) => { Console.WriteLine($"Failed: {e}."); };
-        userAgent.ClientCallAnswered += (uac, res) => { Console.WriteLine("Call successful."); };
+        userAgent.ClientCallFailed += async (uac, e, res) => { Console.WriteLine($"Failed: {e}."); };
+        userAgent.ClientCallAnswered += async (uac, res) => { Console.WriteLine("Call successful."); };
 
-        userAgent.OnCallHungup += (dialog) => { Console.WriteLine("Hanging up."); };
-        userAgent.RemotePutOnHold += () => { Console.WriteLine("Put on hold."); };
-        userAgent.RemoteTookOffHold += () => { Console.WriteLine("Took off hold."); };
+        userAgent.OnCallHungup += async (dialog) => { Console.WriteLine("Hanging up."); };
+        userAgent.RemotePutOnHold += async () => { Console.WriteLine("Put on hold."); };
+        userAgent.RemoteTookOffHold += async () => { Console.WriteLine("Took off hold."); };
 
         Task.Run(async () => {
                 // while (!exitMre.WaitOne(0)) {
@@ -136,7 +136,7 @@ class Program {
                                 voipMediaSession.AcceptRtpFromAny = true;
 
                                 Console.WriteLine($"Calling {destination}");
-                                await userAgent.Call(destination, null, null, voipMediaSession);
+                                userAgent.Call(destination, null, null, voipMediaSession);
                             } else {
                                 Console.WriteLine("Already on call.");
                             }
@@ -146,11 +146,11 @@ class Program {
                             goto case 'c';
                         case 'c':
                             if (userAgent.IsCallActive) {
-                                Console.WriteLine("Hanging up.");
                                 userAgent.Hangup();
                             } else if (userAgent.IsCalling || userAgent.IsRinging) {
-                                Console.WriteLine("Cancelling call.");
                                 userAgent.Cancel();
+                            } else {
+                                Console.WriteLine("No on call.");
                             }
                             break;
                         default:
