@@ -8,7 +8,8 @@ using SIPSorceryMedia.Abstractions;
 using System.CommandLine;
 
 class Program {
-    static ManualResetEvent exitMre = new ManualResetEvent(false);
+    // static ManualResetEvent exitMre = new ManualResetEvent(false);
+    static CancellationTokenSource exitCts = new CancellationTokenSource();
 
     static string audioDeviceDefault;
 
@@ -39,23 +40,12 @@ class Program {
         rootCommand.AddOption(portOption);
         rootCommand.AddGlobalOption(audioDeviceOption);
 
-        rootCommand.SetHandler((sipPort, audioDevice) => {
+        rootCommand.SetHandler(async (sipPort, audioDevice) => {
                     audioDeviceDefault = audioDevice;
                     SetUp(sipPort);
+                    Task.Run(RunConsole);
                     setExit();
                 }, portOption, audioDeviceOption);
-
-        var callCommand = new Command("call", "makes a call.") {
-            destinationArg
-        };
-        rootCommand.AddCommand(callCommand);
-
-        callCommand.SetHandler((destination, audioDevice, sipPort) => {
-                    audioDeviceDefault = audioDevice;
-                    SetUp(sipPort);
-                    MakeCall(destination);
-                    setExit();
-                }, destinationArg, audioDeviceOption, portOption);
 
         return await rootCommand.InvokeAsync(args);
     }
@@ -68,7 +58,7 @@ class Program {
 
         audioEndPoints = AudioSetUp();
 
-        userAgent = new SIPUserAgent(sipTransport, null, false);
+        userAgent = new SIPUserAgent(sipTransport, null, true);
 
         userAgent.OnIncomingCall += async (ua, req) => {
             Console.WriteLine($"Incoming call from {req.RemoteSIPEndPoint}.");
@@ -89,9 +79,81 @@ class Program {
             // voipMediaSession.AudioExtrasSource.SetSource(AudioSourcesEnum.Music);
         };
 
+            
+        userAgent.ClientCallTrying += (uac, res) => { Console.WriteLine("Trying..."); };
+        userAgent.ClientCallRinging += (uac, res) => { Console.WriteLine("Ringing..."); };
+        userAgent.ClientCallFailed += (uac, e, res) => { Console.WriteLine($"Failed: {e}."); };
+        userAgent.ClientCallAnswered += (uac, res) => { Console.WriteLine("Call successful."); };
+
         userAgent.OnCallHungup += (dialog) => { Console.WriteLine($"{dialog.RemoteSIPEndPoint} hanged up"); };
         userAgent.RemotePutOnHold += () => { Console.WriteLine("Put on hold."); };
         userAgent.RemoteTookOffHold += () => { Console.WriteLine("Took off hold."); };
+    }
+
+    // static async Task<bool> MakeCall(string destination) {
+    //     var voipMediaSession = new VoIPMediaSession(audioEndPoints);
+    //     voipMediaSession.AcceptRtpFromAny = true;
+    //
+    //     Console.WriteLine($"Calling {destination}.");
+    //     // return await userAgent.Call(destination, null, null, voipMediaSession);
+    //     return await userAgent.InitiateCallAsync(destination, null, null, voipMediaSession);
+    //
+    //     // var audioSource = voipMediaSession.Media.AudioSource;
+    //     // await audioSource.PauseAudio();
+    //     // await voipMediaSession.AudioExtrasSource.StartAudio();
+    //     // voipMediaSession.AudioExtrasSource.SetSource(AudioSourcesEnum.Music);
+    // }
+
+    static async Task RunConsole() {
+        // while (!exitMre.WaitOne(0)) {
+        while (!exitCts.Token.WaitHandle.WaitOne(0)) {
+            var keyProps = Console.ReadKey();
+
+            switch (keyProps.KeyChar) {
+                case 'h':
+                    if (userAgent.IsCallActive) {
+                        if (userAgent.IsOnLocalHold) {
+                            // (userAgent.MediaSession as VoIPMediaSession).TakeOffHold();
+                            (userAgent.MediaSession as VoIPMediaSession).TakeOffHold();
+                            userAgent.TakeOffHold();
+                            Console.WriteLine("Taking remote off hold.");
+                        } else {
+                            await (userAgent.MediaSession as VoIPMediaSession).PutOnHold();
+                            userAgent.PutOnHold();
+                            Console.WriteLine("Putting remote on hold.");
+                        }
+                    } else {
+                        Console.WriteLine("No active call.");
+                    }
+                    break;
+                case 'm':
+                    if (!userAgent.IsCallActive) {
+                        Console.WriteLine("destination: ");
+                        var destination = Console.ReadLine();
+
+                        var voipMediaSession = new VoIPMediaSession(audioEndPoints);
+                        voipMediaSession.AcceptRtpFromAny = true;
+
+                        Console.WriteLine($"Calling {destination}");
+                        userAgent.Call(destination, null, null, voipMediaSession);
+                    } else {
+                        Console.WriteLine("Already on call.");
+                    }
+                    break;
+                case 'c':
+                    if (userAgent.IsCallActive) {
+                        Console.WriteLine("Hanging up.");
+                        userAgent.Hangup();
+                    } else if (userAgent.IsCalling || userAgent.IsRinging) {
+                        Console.WriteLine("Cancelling call.");
+                        userAgent.Cancel();
+                    }
+                    break;
+                default:
+                    Console.WriteLine("invalid key");
+                    break;
+            }
+        }
     }
 
     static void setExit() {
@@ -105,32 +167,18 @@ class Program {
                 Console.WriteLine("Cancelling call.");
                 userAgent.Cancel();
             }
-            exitMre.Set();
+            // exitMre.Set();
+            exitCts.Cancel();
         };
 
-        exitMre.WaitOne();
+        // exitMre.WaitOne();
+        exitCts.Token.WaitHandle.WaitOne();
 
         while (userAgent.IsHangingUp) {}
 
         Console.WriteLine("Shutting down.");
 
         sipTransport.Shutdown();
-    }
-
-    static async Task<bool> MakeCall(string destination) {
-        var voipMediaSession = new VoIPMediaSession(audioEndPoints);
-        voipMediaSession.AcceptRtpFromAny = true;
-
-        Console.WriteLine("making call.");
-        var callResult = await userAgent.Call(destination, null, null, voipMediaSession);
-        Console.WriteLine($"Call result {((callResult) ? "success" : "failure")}.");
-
-        // var audioSource = voipMediaSession.Media.AudioSource;
-        // await audioSource.PauseAudio();
-        // await voipMediaSession.AudioExtrasSource.StartAudio();
-        // voipMediaSession.AudioExtrasSource.SetSource(AudioSourcesEnum.Music);
-
-        return callResult;
     }
 
     static MediaEndPoints AudioSetUp() { return AudioSetUp(audioDeviceDefault); }
