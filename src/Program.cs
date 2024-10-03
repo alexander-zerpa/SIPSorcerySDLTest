@@ -9,7 +9,8 @@ class Program {
     static void Main(string[] args) {
         int sipPort = 5060;
 
-        CancellationTokenSource exitCts = new CancellationTokenSource();
+        // CancellationTokenSource exitCts = new CancellationTokenSource();
+        ManualResetEvent exitMre = new ManualResetEvent(false);
 
         var sipTransport = new SIPTransport();
         sipTransport.AddSIPChannel(new SIPUDPChannel(new IPEndPoint(IPAddress.Any, sipPort)));
@@ -54,8 +55,8 @@ class Program {
                 Console.WriteLine("Cancelling call.");
                 userAgent.Cancel();
             }
-            // exitMre.Set();
-            exitCts.Cancel();
+            exitMre.Set();
+            // exitCts.Cancel();
         };
 
         userAgent.OnIncomingCall += async (ua, req) => {
@@ -92,8 +93,8 @@ class Program {
         userAgent.RemoteTookOffHold += async () => { Console.WriteLine("Took off hold."); };
 
         Task.Run(async () => {
-                // while (!exitMre.WaitOne(0)) {
-                while (!exitCts.Token.WaitHandle.WaitOne(0)) {
+                while (!exitMre.WaitOne(0)) {
+                // while (!exitCts.Token.WaitHandle.WaitOne(0)) {
                     var keyProps = Console.ReadKey();
                     Console.Write('\b');
 
@@ -142,7 +143,8 @@ class Program {
                             }
                             break;
                         case 'q':
-                            exitCts.Cancel();
+                            exitMre.Set();
+                            // exitCts.Cancel();
                             goto case 'c';
                         case 'c':
                             if (userAgent.IsCallActive) {
@@ -160,8 +162,8 @@ class Program {
                 }
         });
 
-        // exitMre.WaitOne();
-        exitCts.Token.WaitHandle.WaitOne();
+        exitMre.WaitOne();
+        // exitCts.Token.WaitHandle.WaitOne();
 
         while (userAgent.IsHangingUp) {}
 
